@@ -1,5 +1,5 @@
 # DocVerify-AI
-Senior IT Course Project — Phase 1: Product Definition & Backlog
+Senior IT Course Project —
 DocVerify AI is an intelligent document verification platform for the automation of official document verification using artificial intelligence, optical character recognition (OCR) and real-time fraud detection.
 #### Motivation
 The process of manually verifying documents is time consuming, inefficient, and prone to error. Organizations (such as HR recruiters, university admissions officers, and compliance leads) are facing several challenges:
