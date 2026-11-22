@@ -5,7 +5,7 @@
 ```bash
 git clone [https://github.com/Bhaskary07/DocVerify-AI.git](https://github.com/Bhaskary07/DocVerify-AI.git)
 cd DocVerify-AI
-```bash
+
 ### To run
 docker compose up --build -d
 
