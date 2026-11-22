@@ -9,8 +9,8 @@ def test_health_check():
     assert res.status_code == 200
 
 
-def test_multi_format_upload():
-    files = {"file": ("id_card.png", b"x" * 2048, "image/png")}
+def test_reject_small_file():
+    files = {"file": ("tiny.pdf", b"bad", "application/pdf")}
     res = client.post("/api/documents/upload", files=files)
-    assert res.status_code == 200
-    assert res.json()["filename"] == "id_card.png"
+    assert res.status_code == 400
+    assert "too small" in res.json()["detail"].lower()

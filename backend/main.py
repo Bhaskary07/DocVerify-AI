@@ -1,12 +1,15 @@
 import os
+import io
 import uuid
 from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pypdf import PdfReader
+from PIL import Image
 
-app = FastAPI(title="DocVerify AI API", version="0.1.0")
+app = FastAPI(title="DocVerify AI API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,6 +42,29 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Unsupported file type. Allowed: PDF, JPG, PNG.")
 
     content = await file.read()
+    size_bytes = len(content)
+
+    if size_bytes < 1024:
+        raise HTTPException(status_code=400, detail="File corrupted or too small (<1KB).")
+    if size_bytes > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File exceeds 25MB limit.")
+
+    if ext == ".pdf":
+        try:
+            reader = PdfReader(io.BytesIO(content))
+            if reader.is_encrypted:
+                raise HTTPException(status_code=400, detail="Password-protected PDFs are rejected.")
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=400, detail="Corrupted PDF file.")
+    else:
+        try:
+            img = Image.open(io.BytesIO(content))
+            img.verify()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Corrupted image file.")
+
     doc_id = str(uuid.uuid4())[:8]
     saved_name = f"{doc_id}_{file.filename}"
     with open(os.path.join(UPLOAD_DIR, saved_name), "wb") as f:
@@ -51,7 +77,7 @@ async def upload_document(
         "filename": file.filename,
         "file_url": f"/files/{saved_name}",
         "uploaded_at": datetime.utcnow().isoformat(),
-        "status": "Uploaded",
+        "status": "Health Check Passed",
     }
     DOCUMENTS_DB[doc_id] = record
     return record
