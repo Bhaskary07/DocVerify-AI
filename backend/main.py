@@ -12,7 +12,7 @@ from PIL import Image
 from pydantic import BaseModel
 from pypdf import PdfReader
 
-app = FastAPI(title="DocVerify AI API", version="0.5.0")
+app = FastAPI(title="DocVerify AI API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,6 +49,17 @@ class UserAuth(BaseModel):
     email: str
     password: str
     role: Optional[str] = "Applicant"
+
+
+class ReviewDecision(BaseModel):
+    status: str
+    edited_name: Optional[str] = None
+    edited_doc_number: Optional[str] = None
+    reviewer_note: Optional[str] = ""
+
+
+class RoleUpdate(BaseModel):
+    role: str
 
 
 @app.get("/health")
@@ -162,3 +173,32 @@ def list_documents(applicant_email: Optional[str] = None):
     if applicant_email:
         docs = [d for d in docs if d["applicant_email"] == applicant_email]
     return docs
+
+
+@app.put("/api/documents/{doc_id}/review")
+def review_document(doc_id: str, decision: ReviewDecision):
+    if doc_id not in DOCUMENTS_DB:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    doc = DOCUMENTS_DB[doc_id]
+    doc["status"] = decision.status
+    if decision.edited_name:
+        doc["extracted_fields"]["candidate_name"] = decision.edited_name
+    if decision.edited_doc_number:
+        doc["extracted_fields"]["document_number"] = decision.edited_doc_number
+    doc["reviewer_note"] = decision.reviewer_note or ""
+    return doc
+
+
+@app.get("/api/admin/users")
+def admin_list_users():
+    return [{"email": u["email"], "role": u["role"]} for u in USERS_DB.values()]
+
+
+@app.put("/api/admin/users/{email}/role")
+def admin_update_role(email: str, payload: RoleUpdate):
+    if email not in USERS_DB:
+        raise HTTPException(status_code=404, detail="User not found.")
+    if payload.role not in ["Applicant", "Reviewer", "Admin"]:
+        raise HTTPException(status_code=400, detail="Invalid role.")
+    USERS_DB[email]["role"] = payload.role
+    return {"email": email, "role": payload.role}
