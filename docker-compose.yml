@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: docverify-db
+    environment:
+      POSTGRES_USER: docverify
+      POSTGRES_PASSWORD: docverify_secret
+      POSTGRES_DB: docverify_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docverify"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  vectordb:
+    image: qdrant/qdrant:latest
+    container_name: docverify-vectordb
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  backend:
+    build: ./backend
+    container_name: docverify-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://docverify:docverify_secret@db:5432/docverify_db
+      QDRANT_URL: http://vectordb:6333
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - upload_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      vectordb:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    container_name: docverify-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  upload_data:
