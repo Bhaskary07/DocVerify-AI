@@ -1,15 +1,18 @@
-import os
+import hashlib
 import io
+import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pypdf import PdfReader
 from PIL import Image
+from pydantic import BaseModel
+from pypdf import PdfReader
 
-app = FastAPI(title="DocVerify AI API", version="0.2.0")
+app = FastAPI(title="DocVerify AI API", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,7 +25,30 @@ UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
 
+USERS_DB = {
+    "admin@docverify.ai": {
+        "email": "admin@docverify.ai",
+        "password_hash": hashlib.sha256(b"admin123").hexdigest(),
+        "role": "Admin",
+    },
+    "reviewer@docverify.ai": {
+        "email": "reviewer@docverify.ai",
+        "password_hash": hashlib.sha256(b"review123").hexdigest(),
+        "role": "Reviewer",
+    },
+    "applicant@docverify.ai": {
+        "email": "applicant@docverify.ai",
+        "password_hash": hashlib.sha256(b"apply123").hexdigest(),
+        "role": "Applicant",
+    },
+}
 DOCUMENTS_DB = {}
+
+
+class UserAuth(BaseModel):
+    email: str
+    password: str
+    role: Optional[str] = "Applicant"
 
 
 @app.get("/health")
@@ -30,14 +56,37 @@ def health_check():
     return {"status": "healthy", "service": "docverify-backend"}
 
 
+@app.post("/api/auth/register")
+def register_user(user: UserAuth):
+    if user.email in USERS_DB:
+        raise HTTPException(status_code=400, detail="Email already registered.")
+    if user.role not in ["Applicant", "Reviewer", "Admin"]:
+        raise HTTPException(status_code=400, detail="Invalid role.")
+    USERS_DB[user.email] = {
+        "email": user.email,
+        "password_hash": hashlib.sha256(user.password.encode()).hexdigest(),
+        "role": user.role,
+    }
+    return {"message": "User registered successfully", "email": user.email, "role": user.role}
+
+
+@app.post("/api/auth/login")
+def login_user(user: UserAuth):
+    record = USERS_DB.get(user.email)
+    if not record or record["password_hash"] != hashlib.sha256(user.password.encode()).hexdigest():
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    return {"email": record["email"], "role": record["role"], "token": f"session-{uuid.uuid4()}"}
+
+
 @app.post("/api/documents/upload")
 async def upload_document(
     applicant_email: str = Form("applicant@docverify.ai"),
     doc_type: str = Form("Passport"),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
 ):
     allowed_ext = {".pdf", ".jpg", ".jpeg", ".png"}
-    ext = os.path.splitext(file.filename)[1].lower()
+    filename = file.filename or "upload.bin"
+    ext = os.path.splitext(filename)[1].lower()
     if ext not in allowed_ext:
         raise HTTPException(status_code=400, detail="Unsupported file type. Allowed: PDF, JPG, PNG.")
 
@@ -66,7 +115,7 @@ async def upload_document(
             raise HTTPException(status_code=400, detail="Corrupted image file.")
 
     doc_id = str(uuid.uuid4())[:8]
-    saved_name = f"{doc_id}_{file.filename}"
+    saved_name = f"{doc_id}_{filename}"
     with open(os.path.join(UPLOAD_DIR, saved_name), "wb") as f:
         f.write(content)
 
@@ -74,9 +123,9 @@ async def upload_document(
         "id": doc_id,
         "applicant_email": applicant_email,
         "doc_type": doc_type,
-        "filename": file.filename,
+        "filename": filename,
         "file_url": f"/files/{saved_name}",
-        "uploaded_at": datetime.utcnow().isoformat(),
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "status": "Health Check Passed",
     }
     DOCUMENTS_DB[doc_id] = record
