@@ -64,3 +64,20 @@ def test_legibility_feedback_returned():
     assert res.status_code == 200
     assert "legibility" in res.json()
     assert "confidence" in res.json()
+
+
+def test_reviewer_split_screen_decision():
+    png = _png_bytes(500, 500)
+    files = {"file": ("cert.png", png, "image/png")}
+    up = client.post("/api/documents/upload", files=files)
+    doc_id = up.json()["id"]
+    rev = client.put(
+        f"/api/documents/{doc_id}/review",
+        json={
+            "status": "Approved",
+            "edited_name": "Corrected Name",
+            "reviewer_note": "Verified",
+        },
+    )
+    assert rev.status_code == 200
+    assert rev.json()["status"] == "Approved"

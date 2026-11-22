@@ -6,15 +6,19 @@
   <title>DocVerify AI</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; background: #f4f6f9; color: #222; }
-    .card { max-width: 820px; background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
+    .card { max-width: 1080px; background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
     input, select, button { padding: 8px 12px; margin: 4px 0; }
     .hidden { display: none; }
-    .doc-item { border: 1px solid #ddd; padding: 10px; margin-top: 8px; border-radius: 4px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .doc-item { border: 1px solid #ddd; padding: 10px; margin-top: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
   </style>
 </head>
 <body>
   <div id="auth-section" class="card">
     <h2>Login or Register</h2>
+    <p>Demo users: <code>applicant@docverify.ai / apply123</code> | <code>reviewer@docverify.ai / review123</code> | <code>admin@docverify.ai / admin123</code></p>
     <input id="email" type="email" placeholder="Email" value="applicant@docverify.ai" />
     <input id="password" type="password" placeholder="Password" value="apply123" />
     <select id="role">
@@ -28,19 +32,55 @@
   </div>
 
   <div id="applicant-section" class="card hidden">
-    <div id="user-bar"></div>
+    <div id="applicant-bar"></div>
     <button onclick="logout()">Logout</button>
-    <h3>Upload &amp; Extract Metadata (US-04)</h3>
+    <h3>Upload &amp; Extract</h3>
     <select id="doc-type">
       <option value="Passport">Passport</option>
       <option value="Academic Transcript">Academic Transcript</option>
       <option value="Diploma">Diploma</option>
     </select>
     <input id="file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" />
-    <button onclick="uploadDocument()">Upload &amp; Extract</button>
+    <button onclick="uploadDocument()">Upload &amp; Check</button>
     <p id="upload-msg"></p>
-    <h4>Submissions</h4>
+    <h4>My Submissions</h4>
     <div id="applicant-docs"></div>
+  </div>
+
+  <div id="reviewer-section" class="card hidden">
+    <div id="reviewer-bar"></div>
+    <button onclick="logout()">Logout</button>
+    <h3>Reviewer Queue &amp; Split-Screen Workspace (US-06)</h3>
+    <div id="reviewer-queue"></div>
+    <div id="split-workspace" class="split hidden">
+      <div>
+        <h4>Original Document</h4>
+        <iframe id="doc-preview" style="width:100%; height:340px; border:1px solid #ccc;"></iframe>
+      </div>
+      <div>
+        <h4>Extracted Metadata &amp; Decision</h4>
+        <p id="legibility-banner"></p>
+        <label>Candidate Name:</label><br/>
+        <input id="edit-name" style="width:90%;" /><br/>
+        <label>Document Number:</label><br/>
+        <input id="edit-docnum" style="width:90%;" /><br/>
+        <label>Reviewer Note:</label><br/>
+        <input id="edit-note" style="width:90%;" placeholder="Add note..." /><br/><br/>
+        <button onclick="submitReview('Approved')">Approve</button>
+        <button onclick="submitReview('Flagged')">Flag</button>
+        <button onclick="submitReview('Re-upload Requested')">Request Re-upload</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-section" class="card hidden">
+    <div id="admin-bar"></div>
+    <button onclick="logout()">Logout</button>
+    <h3>Role Management</h3>
+    <table>
+      <thead><tr><th>Email</th><th>Role</th><th>Action</th></tr></thead>
+      <tbody id="admin-users"></tbody>
+    </table>
   </div>
 
   <script src="app.js"></script>
