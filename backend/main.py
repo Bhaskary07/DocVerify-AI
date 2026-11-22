@@ -12,7 +12,7 @@ from PIL import Image
 from pydantic import BaseModel
 from pypdf import PdfReader
 
-app = FastAPI(title="DocVerify AI API", version="0.3.0")
+app = FastAPI(title="DocVerify AI API", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -98,11 +98,14 @@ async def upload_document(
     if size_bytes > 25 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File exceeds 25MB limit.")
 
+    extracted_text = ""
     if ext == ".pdf":
         try:
             reader = PdfReader(io.BytesIO(content))
             if reader.is_encrypted:
                 raise HTTPException(status_code=400, detail="Password-protected PDFs are rejected.")
+            for page in reader.pages:
+                extracted_text += (page.extract_text() or "") + "\n"
         except HTTPException:
             raise
         except Exception:
@@ -111,6 +114,8 @@ async def upload_document(
         try:
             img = Image.open(io.BytesIO(content))
             img.verify()
+            img_info = Image.open(io.BytesIO(content))
+            extracted_text = f"Image ({img_info.size[0]}x{img_info.size[1]}px, {img_info.format})"
         except Exception:
             raise HTTPException(status_code=400, detail="Corrupted image file.")
 
@@ -126,7 +131,12 @@ async def upload_document(
         "filename": filename,
         "file_url": f"/files/{saved_name}",
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
-        "status": "Health Check Passed",
+        "status": "Extracted",
+        "extracted_fields": {
+            "candidate_name": applicant_email.split("@")[0].replace(".", " ").title(),
+            "document_number": f"DOC-{doc_id.upper()}",
+            "raw_snippet": extracted_text[:300].strip() or "No embedded text extracted",
+        },
     }
     DOCUMENTS_DB[doc_id] = record
     return record
