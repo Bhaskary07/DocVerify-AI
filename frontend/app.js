@@ -76,7 +76,8 @@ async function uploadDocument() {
     msgEl.innerText = `Error: ${data.detail}`;
     return;
   }
-  msgEl.innerText = `Extracted ${data.extracted_fields.candidate_name} (${data.extracted_fields.document_number})`;
+  const pct = Math.round((data.confidence || 0) * 100);
+  msgEl.innerText = `Uploaded — Legibility: ${data.legibility} (${pct}% confidence)`;
   loadApplicantDocs();
 }
 
@@ -85,10 +86,10 @@ async function loadApplicantDocs() {
   const docs = await res.json();
   document.getElementById("applicant-docs").innerHTML = docs.map(d => {
     const f = d.extracted_fields || {};
+    const pct = Math.round((d.confidence || 0) * 100);
     return `<div class="doc-item">
       <strong>${d.doc_type}</strong> — ${d.filename} (${d.status})<br/>
-      <small>Name: ${f.candidate_name || "-"} | Doc #: ${f.document_number || "-"}</small><br/>
-      <small>Snippet: ${f.raw_snippet || ""}</small>
+      <small>Legibility: ${d.legibility} (${pct}%) | Name: ${f.candidate_name || "-"}</small>
     </div>`;
   }).join("") || "<p>No documents yet.</p>";
 }

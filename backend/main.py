@@ -12,7 +12,7 @@ from PIL import Image
 from pydantic import BaseModel
 from pypdf import PdfReader
 
-app = FastAPI(title="DocVerify AI API", version="0.4.0")
+app = FastAPI(title="DocVerify AI API", version="0.5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,6 +99,9 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="File exceeds 25MB limit.")
 
     extracted_text = ""
+    legibility_status = "Readable (High Quality)"
+    confidence = 0.96
+
     if ext == ".pdf":
         try:
             reader = PdfReader(io.BytesIO(content))
@@ -106,6 +109,10 @@ async def upload_document(
                 raise HTTPException(status_code=400, detail="Password-protected PDFs are rejected.")
             for page in reader.pages:
                 extracted_text += (page.extract_text() or "") + "\n"
+            if not extracted_text.strip():
+                extracted_text = "[Scanned PDF detected — needs visual check]"
+                legibility_status = "Low Text Density - Needs Visual Check"
+                confidence = 0.72
         except HTTPException:
             raise
         except Exception:
@@ -115,7 +122,11 @@ async def upload_document(
             img = Image.open(io.BytesIO(content))
             img.verify()
             img_info = Image.open(io.BytesIO(content))
-            extracted_text = f"Image ({img_info.size[0]}x{img_info.size[1]}px, {img_info.format})"
+            width, height = img_info.size
+            if width < 300 or height < 300:
+                legibility_status = f"Blurry / Low Resolution ({width}x{height}px). Re-upload >= 300x300px."
+                confidence = 0.55
+            extracted_text = f"Image ({width}x{height}px, {img_info.format})"
         except Exception:
             raise HTTPException(status_code=400, detail="Corrupted image file.")
 
@@ -131,12 +142,15 @@ async def upload_document(
         "filename": filename,
         "file_url": f"/files/{saved_name}",
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
-        "status": "Extracted",
+        "status": "Pending Review",
+        "legibility": legibility_status,
+        "confidence": confidence,
         "extracted_fields": {
             "candidate_name": applicant_email.split("@")[0].replace(".", " ").title(),
             "document_number": f"DOC-{doc_id.upper()}",
             "raw_snippet": extracted_text[:300].strip() or "No embedded text extracted",
         },
+        "reviewer_note": "",
     }
     DOCUMENTS_DB[doc_id] = record
     return record

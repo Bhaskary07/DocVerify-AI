@@ -55,3 +55,12 @@ def test_extracted_fields_on_upload():
     fields = res.json()["extracted_fields"]
     assert fields["candidate_name"] == "Jane Doe"
     assert fields["document_number"].startswith("DOC-")
+
+
+def test_legibility_feedback_returned():
+    png = _png_bytes(400, 400)
+    files = {"file": ("scan.png", png, "image/png")}
+    res = client.post("/api/documents/upload", files=files)
+    assert res.status_code == 200
+    assert "legibility" in res.json()
+    assert "confidence" in res.json()
